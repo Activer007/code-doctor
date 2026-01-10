@@ -101,7 +101,7 @@ export const analyzeCode = async (code: string): Promise<DiagnosisResponse> => {
     try {
       console.log(`[CodeDoctor] Attempt ${attempts + 1}/${maxAttempts} - Sending request to Gemini...`);
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
