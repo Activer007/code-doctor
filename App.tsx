@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Play, RotateCcw, Cpu, AlertTriangle, CheckCircle, BrainCircuit, Trash2 } from 'lucide-react';
+import { Activity, Play, RotateCcw, Cpu, AlertTriangle, CheckCircle, BrainCircuit, Trash2, History } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { TraceMap } from './components/TraceMap';
 import { FlashcardReview } from './components/FlashcardReview';
+import HistorySidebar from './components/HistorySidebar';
+import HistoryDetail from './components/HistoryDetail';
 import { analyzeCode } from './services/geminiService';
-import { DiagnosisState, Flashcard } from './types';
+import { addHistoryRecord } from './services/historyService';
+import { DiagnosisState, Flashcard, HistoryRecord } from './types';
 
 const App: React.FC = () => {
   const [code, setCode] = useState<string>('');
@@ -17,6 +20,10 @@ const App: React.FC = () => {
   // Flashcard State
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [isReviewMode, setIsReviewMode] = useState(false);
+
+  // History State
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<HistoryRecord | null>(null);
 
   // Load flashcards from localStorage on mount
   useEffect(() => {
@@ -54,6 +61,10 @@ const App: React.FC = () => {
       console.log("[CodeDoctor] Diagnosis complete:", result);
       setDiagnosisState({ status: 'complete', result, error: null });
 
+      // 自动保存到历史记录
+      addHistoryRecord(code, result);
+      console.log("[CodeDoctor] Record saved to history.");
+
       // Process new flashcards from the analysis
       if (result.generatedFlashcards && result.generatedFlashcards.length > 0) {
         console.log(`[CodeDoctor] Processing ${result.generatedFlashcards.length} new flashcards.`);
@@ -66,7 +77,7 @@ const App: React.FC = () => {
             status: 'new'
           }
         }));
-        
+
         setFlashcards(prev => [...prev, ...newCards]);
       } else {
         console.log("[CodeDoctor] No new flashcards in response.");
@@ -127,10 +138,35 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 lg:p-8 font-sans bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-opacity-20">
-      
+
+      {/* 历史记录侧边栏 */}
+      <HistorySidebar
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onSelectRecord={(record) => {
+          setSelectedHistoryRecord(record);
+          setCode(record.code);
+          setDiagnosisState({
+            status: 'complete',
+            result: record.result,
+            error: null
+          });
+        }}
+      />
+
+      {/* 历史记录详情视图（覆盖模式） */}
+      {selectedHistoryRecord && (
+        <div className="fixed inset-0 z-50 bg-slate-950">
+          <HistoryDetail
+            record={selectedHistoryRecord}
+            onBack={() => setSelectedHistoryRecord(null)}
+          />
+        </div>
+      )}
+
       {isReviewMode && (
-        <FlashcardReview 
-          cards={flashcards} 
+        <FlashcardReview
+          cards={flashcards}
           onClose={() => {
             console.log("[CodeDoctor] Closing review mode.");
             setIsReviewMode(false);
@@ -156,6 +192,15 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
+             {/* History Button */}
+             <button
+               onClick={() => setIsHistoryOpen(true)}
+               className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-700 hover:bg-slate-800 transition-all text-sm font-bold"
+             >
+               <History size={16} />
+               <span>历史记录</span>
+             </button>
+
              {/* Flashcard Button */}
              <div className="relative">
                 <button 

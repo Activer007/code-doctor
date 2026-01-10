@@ -38,3 +38,20 @@ export interface DiagnosisState {
   result: DiagnosisResponse | null;
   error: string | null;
 }
+
+// 历史记录相关类型
+export interface HistoryRecord {
+  id: string; // 唯一标识
+  timestamp: number; // 创建时间戳
+  code: string; // 用户输入的代码
+  title: string; // AI 生成的标题或默认标题
+  summary: string; // 诊断摘要
+  result: DiagnosisResponse; // 完整的诊断结果
+  flashcardsCount: number; // 生成的闪卡数量
+  tags?: string[]; // 可选的标签
+}
+
+export interface HistoryGroup {
+  date: string; // 格式: "2025-01-10"
+  records: HistoryRecord[];
+}
