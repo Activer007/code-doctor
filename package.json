@@ -16,7 +16,8 @@
     "@monaco-editor/react": "^4.7.0",
     "lucide-react": "0.469.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "ts-fsrs": "^5.2.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

@@ -11,6 +11,8 @@ import { DiagnosisState, Flashcard, HistoryRecord } from './types';
 
 import { ConsolePanel } from './components/ConsolePanel';
 import { TracePlayer } from './components/TracePlayer';
+import { QuizCard } from './components/QuizCard';
+import { getRecommendedQuiz, QuizQuestion } from './services/quizService';
 import { pyodideService } from './services/pyodideService';
 
 const App: React.FC = () => {
@@ -29,6 +31,9 @@ const App: React.FC = () => {
   const [traceData, setTraceData] = useState<any[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Quiz State
+  const [activeQuiz, setActiveQuiz] = useState<QuizQuestion | null>(null);
 
   // Trace Playback Effect
   useEffect(() => {
@@ -93,6 +98,15 @@ const App: React.FC = () => {
       console.log("[CodeDoctor] Diagnosis complete:", result);
       setDiagnosisState({ status: 'complete', result, error: null });
 
+      // Recommend Quiz based on error
+      if (result.hasError) {
+        // Assume result.rawError contains the error type description
+        const quiz = getRecommendedQuiz(result.rawError, code);
+        setActiveQuiz(quiz);
+      } else {
+        setActiveQuiz(null);
+      }
+
       // 自动保存到历史记录
       addHistoryRecord(code, result);
       console.log("[CodeDoctor] Record saved to history.");
@@ -130,33 +144,43 @@ const App: React.FC = () => {
     setDiagnosisState({ status: 'idle', result: null, error: null });
   };
 
+import { FSRS, Card as FSRSCard, Rating, generatorParameters } from 'ts-fsrs';
+
+// Initialize FSRS
+const fsrs = new FSRS(generatorParameters({ enable_fuzzing: true }));
+
+const App: React.FC = () => {
+  // ... (previous state)
+
   const handleUpdateCard = (id: string, isCorrect: boolean) => {
     console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}`);
     setFlashcards(prev => prev.map(card => {
       if (card.id !== id) return card;
 
       let newStats = { ...card.stats };
+      let newFsrs = card.fsrs || fsrs.create_empty_card(); // Initialize if missing
 
+      // Map simple correct/incorrect to FSRS ratings
+      const rating = isCorrect ? Rating.Good : Rating.Again;
+      
+      // Schedule next review
+      const scheduling_cards = fsrs.repeat(newFsrs, new Date());
+      newFsrs = scheduling_cards[rating].card;
+
+      console.log(`[FSRS] Card scheduled for: ${newFsrs.due}`);
+
+      // Keep legacy logic for UI compatibility (optional)
       if (isCorrect) {
         newStats.correctStreak += 1;
-        // If 3 consecutive correct answers, mark as mastered
-        if (newStats.correctStreak >= 3) {
-          newStats.status = 'mastered';
-          console.log(`[CodeDoctor] Card ${id} mastered!`);
-        } else {
-          newStats.status = 'learning';
-        }
+        if (newStats.correctStreak >= 3) newStats.status = 'mastered';
+        else newStats.status = 'learning';
       } else {
-        newStats.correctStreak = 0; // Reset streak
+        newStats.correctStreak = 0;
         newStats.incorrectCount += 1;
-        // If 3 total errors, mark as critical
-        if (newStats.incorrectCount >= 3) {
-          newStats.status = 'critical';
-          console.log(`[CodeDoctor] Card ${id} marked critical.`);
-        }
+        if (newStats.incorrectCount >= 3) newStats.status = 'critical';
       }
 
-      return { ...card, stats: newStats };
+      return { ...card, stats: newStats, fsrs: newFsrs };
     }));
   };
   
@@ -453,6 +477,19 @@ const App: React.FC = () => {
                   <div className="relative">
                     <TraceMap trace={diagnosisState.result.trace} />
                   </div>
+
+                  {/* Quiz Recommendation */}
+                  {activeQuiz && (
+                    <div className="animate-[slideUp_0.6s_ease-out]">
+                      <QuizCard 
+                        quiz={activeQuiz} 
+                        onComplete={(isCorrect) => {
+                          console.log("Quiz completed. Correct:", isCorrect);
+                          // TODO: Add XP or save to stats
+                        }} 
+                      />
+                    </div>
+                  )}
                   
                   {/* Final Status */}
                   <div className="flex items-center justify-center pt-8 border-t border-slate-800">
