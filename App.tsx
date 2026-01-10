@@ -9,6 +9,9 @@ import { analyzeCode } from './services/geminiService';
 import { addHistoryRecord } from './services/historyService';
 import { DiagnosisState, Flashcard, HistoryRecord } from './types';
 
+import { ConsolePanel } from './components/ConsolePanel';
+import { pyodideService } from './services/pyodideService';
+
 const App: React.FC = () => {
   const [code, setCode] = useState<string>('');
   const [diagnosisState, setDiagnosisState] = useState<DiagnosisState>({
@@ -17,6 +20,10 @@ const App: React.FC = () => {
     error: null,
   });
   
+  // Console State
+  const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; time?: number }>({ stdout: '', stderr: '' });
+  const [isRunning, setIsRunning] = useState(false);
+
   // Flashcard State
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [isReviewMode, setIsReviewMode] = useState(false);
@@ -135,6 +142,29 @@ const App: React.FC = () => {
   };
 
   const activeCardsCount = flashcards.filter(c => c.stats.status !== 'mastered').length;
+
+  const handleRunCode = async () => {
+    if (!code.trim()) return;
+    
+    setIsRunning(true);
+    setConsoleOutput({ stdout: '', stderr: '' }); // Clear previous output
+    
+    try {
+      const result = await pyodideService.runPython(code);
+      setConsoleOutput({
+        stdout: result.stdout || (result.result ? `[Result] ${result.result}` : ''),
+        stderr: result.stderr || (result.error ? `[Error] ${result.error}` : ''),
+        time: result.executionTime
+      });
+    } catch (err: any) {
+      setConsoleOutput(prev => ({
+        ...prev,
+        stderr: `System Error: ${err.message}`
+      }));
+    } finally {
+      setIsRunning(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 lg:p-8 font-sans bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-opacity-20">
@@ -255,6 +285,14 @@ const App: React.FC = () => {
                 isAnalyzing={diagnosisState.status === 'analyzing'}
               />
             </div>
+
+            <ConsolePanel 
+              output={consoleOutput.stdout} 
+              error={consoleOutput.stderr}
+              isRunning={isRunning} 
+              onRun={handleRunCode}
+              executionTime={consoleOutput.time}
+            />
 
             <button
               onClick={handleDiagnose}
