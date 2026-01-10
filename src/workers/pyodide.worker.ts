@@ -5,6 +5,8 @@ type WorkerMessage =
   | { type: 'INIT' }
   | { type: 'RUN'; code: string; id: string };
 
+import { PYTHON_TRACER_mV1 } from '../python/tracer';
+
 // 定义 Pyodide 的类型 (简化版)
 interface PyodideInterface {
   runPythonAsync: (code: string) => Promise<any>;
@@ -39,6 +41,10 @@ async function initPyodide() {
       // 预加载常用库 (可选，根据需求开启，目前先保持轻量)
       // await pyodide.loadPackage(['numpy', 'pandas']);
 
+      // 加载 Tracer 工具代码
+      console.log('Worker: Installing Python Tracer...');
+      pyodide.runPython(PYTHON_TRACER_mV1);
+
       console.log('Worker: Pyodide loaded successfully.');
     } catch (error) {
       console.error('Worker: Failed to load Pyodide', error);
@@ -68,14 +74,28 @@ async function runPythonCode(code: string, id: string) {
 
   try {
     const startTime = performance.now();
-    const result = await pyodide.runPythonAsync(code);
+    
+    // 使用 Tracer 运行代码
+    // 注意：我们需要转义代码中的引号，或者使用 Pyodide 的 globals 传递变量，这里简单起见使用 globals
+    // 但 runPythonAsync 可以直接访问 JS 作用域，更安全的方式是将代码存入 Python 变量
+    
+    // 方法：将用户代码赋值给一个 Python 变量，然后传给 tracer
+    // 简单的转义处理
+    const escapedCode = code.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    const pythonCmd = `_global_tracer.run("${escapedCode}")`;
+    
+    // 执行
+    const traceJson = await pyodide.runPythonAsync(pythonCmd);
+    const traceData = JSON.parse(traceJson);
+
     const endTime = performance.now();
 
     self.postMessage({
       type: 'RESULT',
       id,
       success: true,
-      result: result?.toString() || '',
+      result: 'Execution Complete', // Tracer 模式下主要看 Trace，返回值次要
+      trace: traceData,
       stdout: stdoutBuffer.join('\n'),
       stderr: stderrBuffer.join('\n'),
       executionTime: endTime - startTime

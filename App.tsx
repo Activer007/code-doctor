@@ -10,6 +10,7 @@ import { addHistoryRecord } from './services/historyService';
 import { DiagnosisState, Flashcard, HistoryRecord } from './types';
 
 import { ConsolePanel } from './components/ConsolePanel';
+import { TracePlayer } from './components/TracePlayer';
 import { pyodideService } from './services/pyodideService';
 
 const App: React.FC = () => {
@@ -23,6 +24,30 @@ const App: React.FC = () => {
   // Console State
   const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; time?: number }>({ stdout: '', stderr: '' });
   const [isRunning, setIsRunning] = useState(false);
+  
+  // Trace State
+  const [traceData, setTraceData] = useState<any[]>([]);
+  const [currentStep, setCurrentStep] = useState<number>(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Trace Playback Effect
+  useEffect(() => {
+    let interval: any;
+    if (isPlaying && traceData.length > 0 && currentStep < traceData.length - 1) {
+      interval = setInterval(() => {
+        setCurrentStep(prev => {
+          if (prev >= traceData.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 500); // 500ms per step
+    } else if (currentStep >= traceData.length - 1) {
+      setIsPlaying(false);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, traceData, currentStep]);
 
   // Flashcard State
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
@@ -147,7 +172,9 @@ const App: React.FC = () => {
     if (!code.trim()) return;
     
     setIsRunning(true);
-    setConsoleOutput({ stdout: '', stderr: '' }); // Clear previous output
+    setConsoleOutput({ stdout: '', stderr: '' });
+    setTraceData([]); // Reset trace
+    setCurrentStep(-1);
     
     try {
       const result = await pyodideService.runPython(code);
@@ -156,6 +183,12 @@ const App: React.FC = () => {
         stderr: result.stderr || (result.error ? `[Error] ${result.error}` : ''),
         time: result.executionTime
       });
+
+      if (result.trace && Array.isArray(result.trace)) {
+        console.log("Trace data received:", result.trace.length, "steps");
+        setTraceData(result.trace);
+        setCurrentStep(0); // Start at beginning
+      }
     } catch (err: any) {
       setConsoleOutput(prev => ({
         ...prev,
@@ -283,8 +316,19 @@ const App: React.FC = () => {
                 value={code} 
                 onChange={setCode} 
                 isAnalyzing={diagnosisState.status === 'analyzing'}
+                activeLine={traceData[currentStep]?.line}
               />
             </div>
+
+            {traceData.length > 0 && (
+              <TracePlayer 
+                totalSteps={traceData.length}
+                currentStep={currentStep}
+                onStepChange={setCurrentStep}
+                isPlaying={isPlaying}
+                onPlayPause={() => setIsPlaying(!isPlaying)}
+              />
+            )}
 
             <ConsolePanel 
               output={consoleOutput.stdout} 

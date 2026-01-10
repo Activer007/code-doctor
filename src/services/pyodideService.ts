@@ -7,6 +7,7 @@ type ExecutionResult = {
   stdout: string;
   stderr: string;
   executionTime?: number;
+  trace?: any[]; // 新增 trace 字段
 };
 
 class PyodideService {
