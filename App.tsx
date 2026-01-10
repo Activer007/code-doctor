@@ -9,6 +9,10 @@ import { analyzeCode } from './services/geminiService';
 import { addHistoryRecord } from './services/historyService';
 import { DiagnosisState, Flashcard, HistoryRecord } from './types';
 
+import { ConsolePanel } from './components/ConsolePanel';
+import { TracePlayer } from './components/TracePlayer';
+import { pyodideService } from './services/pyodideService';
+
 const App: React.FC = () => {
   const [code, setCode] = useState<string>('');
   const [diagnosisState, setDiagnosisState] = useState<DiagnosisState>({
@@ -17,6 +21,34 @@ const App: React.FC = () => {
     error: null,
   });
   
+  // Console State
+  const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; time?: number }>({ stdout: '', stderr: '' });
+  const [isRunning, setIsRunning] = useState(false);
+  
+  // Trace State
+  const [traceData, setTraceData] = useState<any[]>([]);
+  const [currentStep, setCurrentStep] = useState<number>(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Trace Playback Effect
+  useEffect(() => {
+    let interval: any;
+    if (isPlaying && traceData.length > 0 && currentStep < traceData.length - 1) {
+      interval = setInterval(() => {
+        setCurrentStep(prev => {
+          if (prev >= traceData.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 500); // 500ms per step
+    } else if (currentStep >= traceData.length - 1) {
+      setIsPlaying(false);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, traceData, currentStep]);
+
   // Flashcard State
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [isReviewMode, setIsReviewMode] = useState(false);
@@ -136,6 +168,37 @@ const App: React.FC = () => {
 
   const activeCardsCount = flashcards.filter(c => c.stats.status !== 'mastered').length;
 
+  const handleRunCode = async () => {
+    if (!code.trim()) return;
+    
+    setIsRunning(true);
+    setConsoleOutput({ stdout: '', stderr: '' });
+    setTraceData([]); // Reset trace
+    setCurrentStep(-1);
+    
+    try {
+      const result = await pyodideService.runPython(code);
+      setConsoleOutput({
+        stdout: result.stdout || (result.result ? `[Result] ${result.result}` : ''),
+        stderr: result.stderr || (result.error ? `[Error] ${result.error}` : ''),
+        time: result.executionTime
+      });
+
+      if (result.trace && Array.isArray(result.trace)) {
+        console.log("Trace data received:", result.trace.length, "steps");
+        setTraceData(result.trace);
+        setCurrentStep(0); // Start at beginning
+      }
+    } catch (err: any) {
+      setConsoleOutput(prev => ({
+        ...prev,
+        stderr: `System Error: ${err.message}`
+      }));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 lg:p-8 font-sans bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-opacity-20">
 
@@ -253,8 +316,27 @@ const App: React.FC = () => {
                 value={code} 
                 onChange={setCode} 
                 isAnalyzing={diagnosisState.status === 'analyzing'}
+                activeLine={traceData[currentStep]?.line}
               />
             </div>
+
+            {traceData.length > 0 && (
+              <TracePlayer 
+                totalSteps={traceData.length}
+                currentStep={currentStep}
+                onStepChange={setCurrentStep}
+                isPlaying={isPlaying}
+                onPlayPause={() => setIsPlaying(!isPlaying)}
+              />
+            )}
+
+            <ConsolePanel 
+              output={consoleOutput.stdout} 
+              error={consoleOutput.stderr}
+              isRunning={isRunning} 
+              onRun={handleRunCode}
+              executionTime={consoleOutput.time}
+            />
 
             <button
               onClick={handleDiagnose}

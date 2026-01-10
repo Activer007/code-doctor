@@ -1,46 +1,71 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Editor, { useMonaco, OnMount } from '@monaco-editor/react';
 import { Terminal, Eraser } from 'lucide-react';
+import { editor } from 'monaco-editor';
 
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   isAnalyzing: boolean;
+  activeLine?: number; // 新增：控制当前高亮行
 }
 
-export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, isAnalyzing }) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [lineCount, setLineCount] = useState(1);
+export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, isAnalyzing, activeLine }) => {
+  const monaco = useMonaco();
+  const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null);
+  const [decorations, setDecorations] = useState<string[]>([]);
 
-  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    onChange(val);
-    setLineCount(val.split('\n').length);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const spaces = '    '; // 4 spaces for Python
-
-      const newValue = value.substring(0, start) + spaces + value.substring(end);
-      onChange(newValue);
-
-      // Move caret
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + spaces.length;
-      }, 0);
+  // 定义自定义主题
+  useEffect(() => {
+    if (monaco) {
+      monaco.editor.defineTheme('code-doctor-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'keyword', foreground: 'ff79c6', fontStyle: 'bold' },
+          { token: 'string', foreground: 'f1fa8c' },
+          { token: 'number', foreground: 'bd93f9' },
+          { token: 'comment', foreground: '6272a4' },
+        ],
+        colors: {
+          'editor.background': '#02061700', // 透明背景以透出噪声纹理
+          'editor.lineHighlightBackground': '#1e293b50',
+          'editorLineNumber.foreground': '#475569',
+        }
+      });
+      monaco.editor.setTheme('code-doctor-dark');
     }
-  };
+  }, [monaco]);
 
-  const handleClear = () => {
-    onChange('');
-    setLineCount(1);
-    if (textareaRef.current) textareaRef.current.focus();
+  // 处理行高亮
+  useEffect(() => {
+    if (!editorInstance || !monaco) return;
+
+    if (activeLine && activeLine > 0) {
+      // 创建高亮装饰器
+      const newDecorations = editorInstance.deltaDecorations(decorations, [
+        {
+          range: new monaco.Range(activeLine, 1, activeLine, 1),
+          options: {
+            isWholeLine: true,
+            className: 'bg-neon-green/20 border-l-2 border-neon-green', // Tailwind class won't work directly inside canvas, need CSS
+            glyphMarginClassName: 'bg-neon-green w-2 h-2 rounded-full ml-1', // 断点图标位置
+          }
+        }
+      ]);
+      setDecorations(newDecorations);
+      
+      // 自动滚动到该行
+      editorInstance.revealLineInCenter(activeLine);
+    } else {
+      // 清除高亮
+      editorInstance.deltaDecorations(decorations, []);
+      setDecorations([]);
+    }
+  }, [activeLine, editorInstance, monaco]);
+
+  const handleEditorDidMount: OnMount = (editor, monaco) => {
+    setEditorInstance(editor);
   };
 
   return (
@@ -52,7 +77,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, isAnaly
           <span className="font-mono text-sm font-bold tracking-wider">SOURCE_INPUT.py</span>
         </div>
         <button 
-          onClick={handleClear}
+          onClick={() => onChange('')}
           className="text-slate-500 hover:text-slate-300 transition-colors text-xs flex items-center gap-1"
           disabled={isAnalyzing}
         >
@@ -62,26 +87,34 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, isAnaly
       </div>
 
       {/* Editor Area */}
-      <div className="relative flex-1 bg-slate-950 font-mono text-sm overflow-hidden group">
-        {/* Line Numbers */}
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-slate-900/50 border-r border-slate-800 text-right pr-3 pt-4 text-slate-600 select-none font-mono leading-6">
-          {Array.from({ length: Math.max(lineCount, 15) }).map((_, i) => (
-            <div key={i}>{i + 1}</div>
-          ))}
-        </div>
-
-        {/* Text Area */}
-        <textarea
-          ref={textareaRef}
+      <div className="relative flex-1 bg-slate-950/50 pt-2">
+        <Editor
+          height="100%"
+          defaultLanguage="python"
+          theme="code-doctor-dark"
           value={value}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
-          disabled={isAnalyzing}
-          placeholder="# 在此粘贴 Python 代码...&#10;def hello():&#10;    print('你好，世界')"
-          className="absolute inset-0 pl-14 pr-4 pt-4 w-full h-full bg-transparent resize-none text-slate-300 focus:outline-none focus:ring-0 leading-6 selection:bg-neon-blue/20"
+          onChange={(val) => onChange(val || '')}
+          onMount={handleEditorDidMount}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+            fontFamily: "'JetBrains Mono', monospace",
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            padding: { top: 10 },
+            readOnly: isAnalyzing,
+            domReadOnly: isAnalyzing,
+            renderLineHighlight: 'all',
+          }}
         />
       </div>
+      
+      {/* 注入自定义 CSS 样式以支持 decorations className */}
+      <style>{`
+        .bg-neon-green\/20 { background-color: rgba(16, 185, 129, 0.2) !important; }
+        .border-neon-green { border-color: #10b981 !important; }
+      `}</style>
     </div>
   );
 };
