@@ -16,14 +16,12 @@ interface PyodideInterface {
   setStderr: (options: { batched: (msg: string) => void }) => void;
 }
 
-declare function importScripts(...urls: string[]): void;
-declare function loadPyodide(config: { indexURL: string }): Promise<PyodideInterface>;
 
 let pyodide: PyodideInterface | null = null;
 let pyodideReadyPromise: Promise<void> | null = null;
 
 const PYODIDE_VERSION = '0.24.1';
-const PYODIDE_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`;
+const PYODIDE_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.mjs`;
 
 // 初始化 Pyodide
 async function initPyodide() {
@@ -32,7 +30,11 @@ async function initPyodide() {
   pyodideReadyPromise = (async () => {
     try {
       console.log('Worker: Loading Pyodide from CDN...');
-      importScripts(PYODIDE_URL);
+      
+      // Use dynamic import for module worker support
+      const { loadPyodide } = await import(PYODIDE_URL) as {
+        loadPyodide: (config: { indexURL: string }) => Promise<PyodideInterface>
+      };
 
       pyodide = await loadPyodide({
         indexURL: `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
