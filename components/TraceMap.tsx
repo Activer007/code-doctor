@@ -66,21 +66,25 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
         <p className="text-slate-400 text-sm leading-relaxed mb-3">{step.desc}</p>
 
         {/* Comparison View for Errors */}
-        {step.isError && step.badCode && step.goodCode && (
+        {step.isError && (step.badCode || step.goodCode) && (
           <div className="mt-4 rounded-lg overflow-hidden border border-slate-700 bg-slate-950/50">
             <div className="grid grid-cols-1 md:grid-cols-2 text-sm font-mono divide-y md:divide-y-0 md:divide-x divide-slate-800">
-              <div className="p-3 bg-rose-950/20 text-rose-300">
-                <div className="flex items-center gap-2 mb-1 text-rose-500 text-xs font-bold uppercase">
-                  <XCircle size={12} /> 病灶代码 (Pathology)
+              {step.badCode && (
+                <div className="p-3 bg-rose-950/20 text-rose-300">
+                  <div className="flex items-center gap-2 mb-1 text-rose-500 text-xs font-bold uppercase">
+                    <XCircle size={12} /> 病灶代码 (Pathology)
+                  </div>
+                  <div className="opacity-90">{step.badCode}</div>
                 </div>
-                <div className="opacity-90">{step.badCode}</div>
-              </div>
-              <div className="p-3 bg-emerald-950/20 text-emerald-300">
-                <div className="flex items-center gap-2 mb-1 text-emerald-500 text-xs font-bold uppercase">
-                  <CheckCircle2 size={12} /> 修复方案 (Fix)
+              )}
+              {step.goodCode && (
+                <div className="p-3 bg-emerald-950/20 text-emerald-300">
+                  <div className="flex items-center gap-2 mb-1 text-emerald-500 text-xs font-bold uppercase">
+                    <CheckCircle2 size={12} /> 修复方案 (Fix)
+                  </div>
+                  <div className="opacity-90">{step.goodCode}</div>
                 </div>
-                <div className="opacity-90">{step.goodCode}</div>
-              </div>
+              )}
             </div>
           </div>
         )}

@@ -15,6 +15,11 @@ import { QuizCard } from './components/QuizCard';
 import { getRecommendedQuiz, QuizQuestion } from './services/quizService';
 import { pyodideService } from './services/pyodideService';
 
+import { FSRS, Card as FSRSCard, Rating, generatorParameters } from 'ts-fsrs';
+
+// Initialize FSRS
+const fsrs = new FSRS(generatorParameters({ enable_fuzzing: true }));
+
 const App: React.FC = () => {
   const [code, setCode] = useState<string>('');
   const [diagnosisState, setDiagnosisState] = useState<DiagnosisState>({
@@ -144,20 +149,13 @@ const App: React.FC = () => {
     setDiagnosisState({ status: 'idle', result: null, error: null });
   };
 
-import { FSRS, Card as FSRSCard, Rating, generatorParameters } from 'ts-fsrs';
-
-// Initialize FSRS
-const fsrs = new FSRS(generatorParameters({ enable_fuzzing: true }));
-
-const App: React.FC = () => {
-  // ... (previous state)
-
   const handleUpdateCard = (id: string, isCorrect: boolean) => {
     console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}`);
     setFlashcards(prev => prev.map(card => {
       if (card.id !== id) return card;
 
       let newStats = { ...card.stats };
+      // @ts-ignore - FSRS property might not be in type definition yet
       let newFsrs = card.fsrs || fsrs.create_empty_card(); // Initialize if missing
 
       // Map simple correct/incorrect to FSRS ratings

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "pcep-001",
+    "tags": ["IndexError", "list", "slicing"],
+    "question": "What is the output of the following snippet?",
+    "code": "my_list = [1, 2, 3]\nprint(my_list[3])",
+    "options": [
+      "3",
+      "IndexError: list index out of range",
+      "None",
+      "0"
+    ],
+    "correctIndex": 1,
+    "explanation": "Python lists are zero-indexed. The valid indices for a list of length 3 are 0, 1, and 2. Accessing index 3 raises an IndexError."
+  },
+  {
+    "id": "pcep-002",
+    "tags": ["SyntaxError", "if-statement"],
+    "question": "Which of the following is a valid if-statement?",
+    "code": null,
+    "options": [
+      "if (x == 10) then print('yes')",
+      "if x = 10: print('yes')",
+      "if x == 10: print('yes')",
+      "if x == 10 print('yes')"
+    ],
+    "correctIndex": 2,
+    "explanation": "In Python, the condition must be followed by a colon (:). The equality operator is ==, not =."
+  },
+  {
+    "id": "pcep-003",
+    "tags": ["TypeError", "type-conversion"],
+    "question": "What happens when you run this code?",
+    "code": "x = '10'\ny = 5\nprint(x + y)",
+    "options": [
+      "15",
+      "105",
+      "TypeError",
+      "NaN"
+    ],
+    "correctIndex": 2,
+    "explanation": "You cannot add a string ('10') and an integer (5) directly in Python. You must convert one of them explicitly (e.g., int(x) + y)."
+  },
+  {
+    "id": "pcep-004",
+    "tags": ["loops", "range"],
+    "question": "How many times will 'Hello' be printed?",
+    "code": "for i in range(1, 4):\n    print('Hello')",
+    "options": [
+      "3",
+      "4",
+      "5",
+      "2"
+    ],
+    "correctIndex": 0,
+    "explanation": "range(1, 4) generates values [1, 2, 3]. The loop runs 3 times. The stop value (4) is exclusive."
+  }
+]

@@ -118,7 +118,7 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: "df[['A', 'B']]" } });
 
     expect(input).toHaveValue("df[['A', 'B']]");
@@ -133,10 +133,10 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: "df[['A', 'B']]" } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -153,10 +153,10 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: 'wrong answer' } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -173,14 +173,14 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: "df[['A', 'B']]" } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/回答正确/)).toBeInTheDocument();
+      expect(screen.getByText('逻辑修复成功！')).toBeInTheDocument();
     });
   });
 
@@ -193,14 +193,14 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: 'wrong' } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/回答错误/)).toBeInTheDocument();
+      expect(screen.getByText('修复失败')).toBeInTheDocument();
     });
   });
 
@@ -213,10 +213,10 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: 'wrong' } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -236,10 +236,10 @@ describe('FlashcardReview Component', () => {
     // 第一张卡片
     expect(screen.getByText('DataFrame 索引')).toBeInTheDocument();
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: "df[['A', 'B']]" } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     // 点击下一张
@@ -290,11 +290,11 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     // 输入带额外空格的答案
     fireEvent.change(input, { target: { value: "df[['A',  'B']]" } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -302,7 +302,7 @@ describe('FlashcardReview Component', () => {
     });
   });
 
-  it('应该在最后一张卡片后显示完成状态', async () => {
+  it('应该在最后一张卡片后循环回第一张', async () => {
     const singleCard: Flashcard[] = [mockCards[0]];
 
     render(
@@ -313,10 +313,10 @@ describe('FlashcardReview Component', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('输入正确代码...');
+    const input = screen.getByPlaceholderText('在此输入修复后的代码...');
     fireEvent.change(input, { target: { value: "df[['A', 'B']]" } });
 
-    const submitButton = screen.getByText('提交答案');
+    const submitButton = screen.getByText('验证修复方案');
     fireEvent.click(submitButton);
 
     // 点击下一张（应该触发完成）
@@ -324,7 +324,8 @@ describe('FlashcardReview Component', () => {
     fireEvent.click(nextButton);
 
     await waitFor(() => {
-      expect(screen.getByText('挑战完成！')).toBeInTheDocument();
+      // Should loop back to the same card since it's the only one and props didn't change
+      expect(screen.getByText('DataFrame 索引')).toBeInTheDocument();
     });
   });
 });

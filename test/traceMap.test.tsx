@@ -83,8 +83,8 @@ describe('TraceMap Component', () => {
   it('应该显示步骤序号', () => {
     render(<TraceMap trace={[successStep, errorStep]} />);
 
-    expect(screen.getByText('步骤 1')).toBeInTheDocument();
-    expect(screen.getByText('步骤 2')).toBeInTheDocument();
+    expect(screen.getByText(/步骤 1/)).toBeInTheDocument();
+    expect(screen.getByText(/步骤 2/)).toBeInTheDocument();
   });
 
   it('应该区分不同状态的颜色', () => {
@@ -110,8 +110,8 @@ describe('TraceMap Component', () => {
   it('应该显示错误步骤的完整信息', () => {
     render(<TraceMap trace={[errorStep]} />);
 
-    expect(screen.getByText('病灶代码')).toBeInTheDocument();
-    expect(screen.getByText('修复方案')).toBeInTheDocument();
+    expect(screen.getByText(/病灶代码/)).toBeInTheDocument();
+    expect(screen.getByText(/修复方案/)).toBeInTheDocument();
     expect(screen.getByText('错误原因')).toBeInTheDocument();
   });
 
@@ -156,6 +156,7 @@ describe('TraceMap Component', () => {
     render(<TraceMap trace={[errorWithBadCode]} />);
 
     expect(screen.getByText('wrong')).toBeInTheDocument();
+    expect(screen.getByText(/病灶代码/)).toBeInTheDocument();
   });
 
   it('应该处理只有 reason 的错误步骤', () => {

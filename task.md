@@ -457,6 +457,41 @@ export function activate(context: vscode.ExtensionContext) {
 
 ---
 
+## 🧪 质量保证体系 (Quality Assurance)
+
+### 引入 Playwright 自动化测试框架
+
+> **背景**: 当前缺乏 E2E 测试，无法保障核心流程在迭代中的稳定性。需引入 Playwright 进行全链路自动化测试。
+
+#### 1. 测试范围定义 (Scope)
+- **核心业务流**: 代码诊断 -> 可视化追踪 -> 闪卡生成 -> 复习
+- **交互组件**: Monaco Editor 输入、Console 面板交互、Trace Player 控制
+- **数据持久化**: LocalStorage 读写验证 (历史记录、FSRS 状态)
+- **响应式布局**: 桌面端 vs 移动端适配
+
+#### 2. 核心场景测试用例 (Core Scenarios)
+1.  **Happy Path - 诊断流程**:
+    - 输入正确 Python 代码 -> 点击诊断 -> 验证无报错 -> 验证 TraceMap 节点显示。
+2.  **Happy Path - 执行流程**:
+    - 输入 `print("hello")` -> 点击运行 -> 验证 Console 输出 "hello"。
+3.  **Error Path - 错误捕获**:
+    - 输入错误代码 (如 `IndexError`) -> 验证诊断报告生成 -> 验证 "真题推荐" 卡片弹出。
+4.  **Feature - 闪卡复习**:
+    - 进入复习模式 -> 模拟答题 (忘记/认识) -> 验证 FSRS 调度时间更新。
+5.  **Feature - 历史回溯**:
+    - 点击历史记录 -> 验证代码编辑器内容恢复 -> 验证诊断状态恢复。
+
+#### 3. CI/CD 集成
+- [ ] 配置 `playwright.yml` GitHub Action
+- [ ] PR 提交自动触发 E2E 测试
+- [ ] 测试失败自动拦截合并
+- [ ] 生成可视化的 HTML 测试报告
+
+#### 4. 覆盖率评估
+- 建立 E2E 测试覆盖率基准，目标覆盖 80% 核心交互路径。
+
+---
+
 ## 🔧 技术债务
 
 ### 高优先级

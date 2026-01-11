@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getRecommendedQuiz } from '../src/services/quizService';
-import quizBank from '../src/data/quiz-bank.json';
+import { getRecommendedQuiz } from '../services/quizService';
+import quizBank from '../data/quiz-bank.json';
 
 describe('QuizService', () => {
   it('recommends IndexError quiz for IndexError message', () => {
