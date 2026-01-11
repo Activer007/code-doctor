@@ -43,7 +43,7 @@ interface AppState {
   flashcards: Flashcard[];
   isReviewMode: boolean;
   setIsReviewMode: (isMode: boolean) => void;
-  updateFlashcard: (id: string, isCorrect: boolean) => void;
+  updateFlashcard: (id: string, isCorrect: boolean, rating?: Rating) => void;
   clearMasteredCards: () => void;
   addFlashcards: (newCards: Flashcard[]) => void;
 
@@ -187,8 +187,8 @@ export const useAppStore = create<AppState>()(
         flashcards: typeof flashcardsOrFn === 'function' ? flashcardsOrFn(state.flashcards) : flashcardsOrFn
       })),
       addFlashcards: (newCards) => set((state) => ({ flashcards: [...state.flashcards, ...newCards] })),
-      updateFlashcard: (id, isCorrect) => set((state) => {
-        console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}`);
+      updateFlashcard: (id, isCorrect, providedRating) => set((state) => {
+        console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}, Rating: ${providedRating}`);
         const updatedFlashcards = state.flashcards.map(card => {
           if (card.id !== id) return card;
 
@@ -196,7 +196,11 @@ export const useAppStore = create<AppState>()(
           // @ts-ignore - FSRS property might not be in type definition yet
           let newFsrs = card.fsrs || fsrs.create_empty_card();
 
-          const rating = isCorrect ? Rating.Good : Rating.Again;
+          // Use provided rating or default based on correctness
+          const rating = providedRating !== undefined 
+            ? providedRating 
+            : (isCorrect ? Rating.Good : Rating.Again);
+            
           const scheduling_cards = fsrs.repeat(newFsrs, new Date());
           newFsrs = scheduling_cards[rating].card;
 
