@@ -88,14 +88,14 @@ async function runPythonCode(code: string, id: string) {
     pyodide.globals.set("_user_code_to_run", code);
     
     // 执行 tracer.run
-    const pythonCmd = \`_global_tracer.run(_user_code_to_run)\`;
+    const pythonCmd = `_global_tracer.run(_user_code_to_run)`;
     const traceJson = await pyodide.runPythonAsync(pythonCmd);
     
     let traceData;
     try {
       traceData = JSON.parse(traceJson);
     } catch (parseError: any) {
-      throw new Error(\`Failed to parse execution trace: \${parseError.message}\`);
+      throw new Error(`Failed to parse execution trace: ${parseError.message}`);
     }
     
     const endTime = performance.now();
