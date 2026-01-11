@@ -5,6 +5,7 @@ import { TraceMap } from './components/TraceMap';
 import { FlashcardReview } from './components/FlashcardReview';
 import HistorySidebar from './components/HistorySidebar';
 import HistoryDetail from './components/HistoryDetail';
+import { TutorChat } from './components/TutorChat';
 import { useAppStore } from './stores/useAppStore';
 
 import { ConsolePanel } from './components/ConsolePanel';
@@ -67,6 +68,8 @@ const App: React.FC = () => {
   }, [isPlaying, traceData, currentStep, incrementCurrentStep, setIsPlaying]);
 
   const activeCardsCount = flashcards.filter(c => c.stats.status !== 'mastered').length;
+
+  const [activeTab, setActiveTab] = React.useState<'input' | 'report'>('input');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 lg:p-8 font-sans bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-opacity-20">
@@ -161,18 +164,34 @@ const App: React.FC = () => {
           </div>
         </header>
 
+        {/* Mobile Tabs */}
+        <div className="flex lg:hidden bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+          <button 
+            onClick={() => setActiveTab('input')}
+            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'input' ? 'bg-slate-800 text-neon-blue shadow-lg' : 'text-slate-500'}`}
+          >
+            代码输入
+          </button>
+          <button 
+            onClick={() => setActiveTab('report')}
+            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'report' ? 'bg-slate-800 text-neon-green shadow-lg' : 'text-slate-500'}`}
+          >
+            诊断结果 {diagnosisState.status === 'complete' && <span className="inline-block w-2 h-2 rounded-full bg-neon-green ml-1"></span>}
+          </button>
+        </div>
+
         {/* Main Content */}
-        <main className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[600px]">
+        <main className="flex-1 flex flex-col lg:grid lg:grid-cols-2 gap-6 min-h-[600px]">
           
           {/* Left Column: Input */}
-          <section className="flex flex-col gap-4">
+          <section className={`flex flex-col gap-4 ${activeTab === 'input' ? 'flex' : 'hidden lg:flex'}`}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-400 tracking-wider flex items-center gap-2">
                 <Cpu size={16} /> 输入终端 (INPUT TERMINAL)
               </h2>
             </div>
             
-            <div className="flex-1 min-h-[400px]">
+            <div className="flex-1 min-h-[400px] lg:min-h-0">
               <CodeEditor 
                 value={code} 
                 onChange={setCode} 
@@ -200,7 +219,10 @@ const App: React.FC = () => {
             />
 
             <button
-              onClick={diagnoseCode}
+              onClick={async () => {
+                await diagnoseCode();
+                if (window.innerWidth < 1024) setActiveTab('report');
+              }}
               disabled={diagnosisState.status === 'analyzing' || !code.trim()}
               className={`
                 relative w-full py-4 rounded-xl font-bold tracking-widest transition-all duration-300 overflow-hidden group
@@ -226,7 +248,7 @@ const App: React.FC = () => {
           </section>
 
           {/* Right Column: Analysis */}
-          <section className="flex flex-col gap-4">
+          <section className={`flex flex-col gap-4 ${activeTab === 'report' ? 'flex' : 'hidden lg:flex'}`}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-400 tracking-wider flex items-center gap-2">
                 <Activity size={16} /> 诊断报告 (DIAGNOSTIC REPORT)
@@ -240,7 +262,7 @@ const App: React.FC = () => {
 
             <div className={`
               flex-1 rounded-xl border p-6 overflow-y-auto max-h-[800px] transition-all duration-500 scroll-smooth
-              ${diagnosisState.status === 'idle' ? 'bg-slate-900/30 border-slate-800 border-dashed flex items-center justify-center' : 'glass-panel border-slate-700/50'}
+              ${diagnosisState.status === 'idle' ? 'bg-slate-900/30 border-slate-800 border-dashed flex items-center justify-center min-h-[400px]' : 'glass-panel border-slate-700/50'}
             `}>
               
               {diagnosisState.status === 'idle' && (
@@ -342,6 +364,7 @@ const App: React.FC = () => {
           </section>
         </main>
       </div>
+      <TutorChat />
     </div>
   );
 };

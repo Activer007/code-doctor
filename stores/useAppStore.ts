@@ -43,7 +43,7 @@ interface AppState {
   flashcards: Flashcard[];
   isReviewMode: boolean;
   setIsReviewMode: (isMode: boolean) => void;
-  updateFlashcard: (id: string, isCorrect: boolean) => void;
+  updateFlashcard: (id: string, isCorrect: boolean, rating?: Rating) => void;
   clearMasteredCards: () => void;
   addFlashcards: (newCards: Flashcard[]) => void;
 
@@ -53,6 +53,14 @@ interface AppState {
   setIsHistoryOpen: (isOpen: boolean) => void;
   setSelectedHistoryRecord: (record: HistoryRecord | null) => void;
   loadHistoryRecord: (record: HistoryRecord) => void;
+
+  // Tutor Chat State
+  chatMessages: { role: 'user' | 'model'; parts: { text: string }[] }[];
+  isChatOpen: boolean;
+  isChatLoading: boolean;
+  setIsChatOpen: (isOpen: boolean) => void;
+  sendMessage: (text: string) => Promise<void>;
+  clearChat: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -86,7 +94,8 @@ export const useAppStore = create<AppState>()(
           set({ diagnosisState: { status: 'complete', result, error: null } });
 
           // Recommend Quiz based on error
-          if (result.hasError) {
+          const hasError = result.trace.some(step => step.status === 'error');
+          if (hasError) {
             const quiz = getRecommendedQuiz(result.rawError, code);
             set({ activeQuiz: quiz });
           } else {
@@ -187,22 +196,29 @@ export const useAppStore = create<AppState>()(
         flashcards: typeof flashcardsOrFn === 'function' ? flashcardsOrFn(state.flashcards) : flashcardsOrFn
       })),
       addFlashcards: (newCards) => set((state) => ({ flashcards: [...state.flashcards, ...newCards] })),
-      updateFlashcard: (id, isCorrect) => set((state) => {
-        console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}`);
+      updateFlashcard: (id, isCorrect, providedRating) => set((state) => {
+        console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}, Rating: ${providedRating}`);
         const updatedFlashcards = state.flashcards.map(card => {
           if (card.id !== id) return card;
 
           let newStats = { ...card.stats };
           // @ts-ignore - FSRS property might not be in type definition yet
-          let newFsrs = card.fsrs || fsrs.create_empty_card();
+          let newFsrs = card.fsrs || fsrs.createEmptyCard();
 
-          const rating = isCorrect ? Rating.Good : Rating.Again;
+          // Use provided rating or default based on correctness
+          const rating = providedRating !== undefined 
+            ? providedRating 
+            : (isCorrect ? Rating.Good : Rating.Again);
+            
           const scheduling_cards = fsrs.repeat(newFsrs, new Date());
           newFsrs = scheduling_cards[rating].card;
 
           console.log(`[FSRS] Card scheduled for: ${newFsrs.due}`);
 
-          if (isCorrect) {
+          // A card is only "really" correct if the rating is higher than Again (1)
+          const isReallyCorrect = providedRating !== undefined ? providedRating > Rating.Again : isCorrect;
+
+          if (isReallyCorrect) {
             newStats.correctStreak += 1;
             if (newStats.correctStreak >= 3) newStats.status = 'mastered';
             else newStats.status = 'learning';
@@ -238,11 +254,60 @@ export const useAppStore = create<AppState>()(
             error: null
           }
         });
-      }
+      },
+
+      // Tutor Chat Actions
+      chatMessages: [],
+      isChatOpen: false,
+      isChatLoading: false,
+      setIsChatOpen: (isChatOpen) => set({ isChatOpen }),
+      sendMessage: async (text) => {
+        const { chatMessages, code, diagnosisState } = get();
+        const currentMessageCount = chatMessages.length;
+        const newMessage = { role: 'user' as const, parts: [{ text }] };
+        const updatedMessages = [...chatMessages, newMessage];
+        
+        set({ chatMessages: updatedMessages, isChatLoading: true, isChatOpen: true });
+
+        try {
+          const { chatWithTutor } = await import('../services/geminiService');
+          const response = await chatWithTutor(updatedMessages, {
+            code,
+            diagnosis: diagnosisState.result?.rawError
+          });
+          
+          set((state) => {
+            // If chat was cleared while waiting, don't add the reply
+            if (state.chatMessages.length === 0 && currentMessageCount > 0) return {};
+            return {
+              chatMessages: [...state.chatMessages, { role: 'model', parts: [{ text: response }] }]
+            };
+          });
+        } catch (error: any) {
+          set((state) => {
+            if (state.chatMessages.length === 0 && currentMessageCount > 0) return {};
+            return {
+              chatMessages: [...state.chatMessages, { role: 'model', parts: [{ text: `导师暂时掉线了: ${error.message}` }] }]
+            };
+          });
+        } finally {
+          set({ isChatLoading: false });
+        }
+      },
+      clearChat: () => set({ chatMessages: [] })
     }),
     {
       name: 'code-doctor-storage',
-      partialize: (state) => ({ flashcards: state.flashcards }), // Only persist flashcards
+      partialize: (state) => ({ flashcards: state.flashcards, chatMessages: state.chatMessages }), // Persist flashcards and chat
+      storage: createJSONStorage(() => localStorage, {
+        reviver: (key, value) => {
+          // Recover Date objects for FSRS compatibility
+          if (key === 'due' || key === 'last_review') {
+            return value ? new Date(value as string) : value;
+          }
+          return value;
+        },
+      }),
     }
   )
 );

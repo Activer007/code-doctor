@@ -1,6 +1,7 @@
 import React from 'react';
 import { TraceStep } from '../types';
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, Lightbulb, GitCommit } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Lightbulb, GitCommit } from 'lucide-react';
+import { Virtuoso } from 'react-virtuoso';
 
 interface TraceMapProps {
   trace: TraceStep[];
@@ -38,8 +39,8 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
   const nodeClass = getStatusColor(step.status);
 
   return (
-    <div className="relative pl-8 pb-8 last:pb-0">
-      {/* Connector Line */}
+    <div className="relative pl-8 pb-8 last:pb-4">
+      {/* Connector Line - Moved inside node for virtual list compatibility */}
       {!isLast && (
         <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-slate-800"></div>
       )}
@@ -64,6 +65,27 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
 
         <h3 className="text-lg font-bold text-slate-100 mb-1">{step.title}</h3>
         <p className="text-slate-400 text-sm leading-relaxed mb-3">{step.desc}</p>
+
+        {/* Variables Snapshot */}
+        {step.variables && Object.keys(step.variables).length > 0 && (
+          <div className="mt-3 mb-4 p-3 bg-slate-950/40 rounded border border-slate-800/50">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-2 flex items-center gap-1">
+              <div className="w-1 h-1 rounded-full bg-neon-blue"></div>
+              变量快照 (Locals)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+              {Object.entries(step.variables).map(([name, value]) => (
+                <div key={name} className="flex items-baseline gap-2 text-xs font-mono">
+                  <span className="text-blue-400">{name}</span>
+                  <span className="text-slate-600">=</span>
+                  <span className="text-amber-200 truncate">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Comparison View for Errors */}
         {step.isError && (step.badCode || step.goodCode) && (
@@ -112,16 +134,41 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
 };
 
 export const TraceMap: React.FC<TraceMapProps> = ({ trace }) => {
+  if (!trace || trace.length === 0) {
+    return null;
+  }
+
+  // Use a fixed height for the scroll area if there are many items
+  const useVirtual = trace.length > 5;
+
+  if (!useVirtual) {
+    return (
+      <div className="relative py-2">
+        {trace.map((step, index) => (
+          <TraceNode 
+            key={index} 
+            step={step} 
+            index={index} 
+            isLast={index === trace.length - 1} 
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="relative py-2">
-      {trace.map((step, index) => (
-        <TraceNode 
-          key={index} 
-          step={step} 
-          index={index} 
-          isLast={index === trace.length - 1} 
-        />
-      ))}
+    <div className="relative py-2" style={{ height: '600px' }}>
+      <Virtuoso
+        style={{ height: '100%' }}
+        data={trace}
+        itemContent={(index, step) => (
+          <TraceNode 
+            step={step} 
+            index={index} 
+            isLast={index === trace.length - 1} 
+          />
+        )}
+      />
     </div>
   );
 };

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, ArrowRight, BrainCircuit, AlertTriangle, Trophy } from 'lucide-react';
+import { X, Check, ArrowRight, BrainCircuit, Trophy, RotateCcw, Frown, Smile, Sparkles } from 'lucide-react';
 import { Flashcard } from '../types';
+import { Rating } from 'ts-fsrs';
 
 interface FlashcardReviewProps {
   cards: Flashcard[];
   onClose: () => void;
-  onUpdateCard: (id: string, isCorrect: boolean) => void;
+  onUpdateCard: (id: string, isCorrect: boolean, rating?: Rating) => void;
 }
 
 export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose, onUpdateCard }) => {
@@ -13,13 +14,12 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
   const [userInput, setUserInput] = useState('');
   const [showResult, setShowResult] = useState<'correct' | 'incorrect' | null>(null);
   
-  // Filter out mastered cards for the review session, but we still need to handle empty states
+  // Filter out mastered cards for the review session
   const activeCards = cards.filter(c => c.stats.status !== 'mastered');
   
   const currentCard = activeCards[currentIndex];
 
   useEffect(() => {
-    // Reset state when card changes
     setUserInput('');
     setShowResult(null);
   }, [currentIndex, activeCards.length]);
@@ -47,21 +47,26 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
   if (!currentCard) return null;
 
   const handleCheck = () => {
-    // Simple normalization: remove whitespace to compare logic
     const normalize = (str: string) => str.replace(/\s+/g, '').trim();
     const isCorrect = normalize(userInput) === normalize(currentCard.backCode);
     
-    console.log(`[CodeDoctor] Card Review - Concept: "${currentCard.concept}" | Result: ${isCorrect ? 'PASS' : 'FAIL'}`);
-
     setShowResult(isCorrect ? 'correct' : 'incorrect');
-    onUpdateCard(currentCard.id, isCorrect);
+    
+    // If incorrect, we immediately update with "Again"
+    if (!isCorrect) {
+      onUpdateCard(currentCard.id, false, Rating.Again);
+    }
+  };
+
+  const handleRate = (rating: Rating) => {
+    onUpdateCard(currentCard.id, true, rating);
+    handleNext();
   };
 
   const handleNext = () => {
     if (currentIndex < activeCards.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
-      // Loop back or finish? Let's loop for now if there are still cards
       setCurrentIndex(0);
     }
     setShowResult(null);
@@ -83,7 +88,6 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
         ${isCritical ? 'border-rose-500/50 shadow-[0_0_30px_rgba(244,63,94,0.15)]' : 'border-slate-700 shadow-black/50'}
       `}>
         
-        {/* Progress Bar */}
         <div className="h-1 bg-slate-800 w-full">
           <div 
             className="h-full bg-neon-blue transition-all duration-300" 
@@ -92,7 +96,6 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
         </div>
 
         <div className="p-6 md:p-8">
-          {/* Header */}
           <div className="flex justify-between items-start mb-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -109,7 +112,6 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
               </h2>
             </div>
             
-            {/* Stats */}
             <div className="flex gap-2">
               {[...Array(3)].map((_, i) => (
                 <div 
@@ -120,9 +122,7 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
             </div>
           </div>
 
-          {/* Challenge Area */}
           <div className="space-y-6">
-            {/* The "Bad" Code */}
             <div className="bg-slate-950/50 rounded-lg p-4 border border-rose-900/30 relative overflow-hidden group">
               <div className="absolute top-0 right-0 px-2 py-1 bg-rose-950/50 text-rose-500 text-[10px] font-mono border-bl rounded-bl">PATHOLOGY</div>
               <pre className="font-mono text-sm text-rose-200/80 line-through decoration-rose-500/50 whitespace-pre-wrap">
@@ -130,7 +130,6 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
               </pre>
             </div>
 
-            {/* User Input Area */}
             <div className="relative">
               <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
                 修复代码 (输入正确逻辑)
@@ -151,23 +150,14 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
                 autoFocus
               />
               
-              {/* Feedback Overlay */}
-              {showResult && (
+              {showResult === 'incorrect' && (
                 <div className="mt-4 p-4 rounded-lg bg-slate-950 border border-slate-800 animate-[slideDown_0.2s_ease-out]">
                   <div className="flex items-start gap-3">
-                    {showResult === 'correct' ? (
-                      <div className="p-2 bg-emerald-500/20 rounded-full text-emerald-500">
-                        <Check size={20} />
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-rose-500/20 rounded-full text-rose-500">
-                        <X size={20} />
-                      </div>
-                    )}
+                    <div className="p-2 bg-rose-500/20 rounded-full text-rose-500">
+                      <X size={20} />
+                    </div>
                     <div>
-                      <h4 className={`font-bold mb-1 ${showResult === 'correct' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {showResult === 'correct' ? '逻辑修复成功！' : '修复失败'}
-                      </h4>
+                      <h4 className="font-bold mb-1 text-rose-400">修复失败</h4>
                       <p className="text-sm text-slate-400 leading-relaxed mb-2">
                         {currentCard.explanation}
                       </p>
@@ -186,9 +176,51 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
                   </button>
                 </div>
               )}
+
+              {showResult === 'correct' && (
+                <div className="mt-4 p-6 rounded-xl bg-slate-950 border border-emerald-500/30 animate-[slideDown_0.2s_ease-out] shadow-xl shadow-emerald-500/5">
+                  <div className="text-center mb-6">
+                    <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Check className="text-emerald-400" size={24} />
+                    </div>
+                    <h4 className="text-xl font-bold text-emerald-400">逻辑修复成功！</h4>
+                    <p className="text-sm text-slate-400 mt-1">请根据刚才的掌握程度为自己评分：</p>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-3">
+                    <button 
+                      onClick={() => handleRate(Rating.Again)}
+                      className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-rose-500/50 hover:bg-rose-500/5 transition-all group"
+                    >
+                      <RotateCcw size={20} className="text-slate-500 group-hover:text-rose-400" />
+                      <span className="text-[10px] font-bold uppercase text-slate-500 group-hover:text-rose-400">遗忘</span>
+                    </button>
+                    <button 
+                      onClick={() => handleRate(Rating.Hard)}
+                      className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group"
+                    >
+                      <Frown size={20} className="text-slate-500 group-hover:text-amber-400" />
+                      <span className="text-[10px] font-bold uppercase text-slate-500 group-hover:text-amber-400">吃力</span>
+                    </button>
+                    <button 
+                      onClick={() => handleRate(Rating.Good)}
+                      className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group"
+                    >
+                      <Smile size={20} className="text-slate-500 group-hover:text-emerald-400" />
+                      <span className="text-[10px] font-bold uppercase text-slate-500 group-hover:text-emerald-400">掌握</span>
+                    </button>
+                    <button 
+                      onClick={() => handleRate(Rating.Easy)}
+                      className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-neon-blue/50 hover:bg-blue-500/5 transition-all group"
+                    >
+                      <Sparkles size={20} className="text-slate-500 group-hover:text-neon-blue" />
+                      <span className="text-[10px] font-bold uppercase text-slate-500 group-hover:text-neon-blue">太简单</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Action Buttons (Only show if result not shown) */}
             {!showResult && (
               <button
                 onClick={handleCheck}
@@ -198,7 +230,6 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({ cards, onClose
                 验证修复方案
               </button>
             )}
-
           </div>
         </div>
       </div>
