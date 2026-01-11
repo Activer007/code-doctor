@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
 import { analyzeCode } from '../services/geminiService';
 import { addHistoryRecord } from '../services/historyService';
+import { useAppStore } from '../stores/useAppStore';
 import type { DiagnosisResponse } from '../types';
 
 // Mock services
@@ -94,6 +95,22 @@ describe('App Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLocalStorage.clear();
+
+    // Reset Zustand store
+    useAppStore.setState({
+      code: '',
+      diagnosisState: { status: 'idle', result: null, error: null },
+      traceData: [],
+      currentStep: -1,
+      isPlaying: false,
+      flashcards: [],
+      consoleOutput: { stdout: '', stderr: '' },
+      isRunning: false,
+      activeQuiz: null,
+      isReviewMode: false,
+      selectedHistoryRecord: null,
+      isHistoryOpen: false
+    });
 
     // Mock analyzeCode
     vi.mocked(analyzeCode).mockResolvedValue(mockDiagnosisResult);
@@ -241,6 +258,8 @@ describe('App Integration Tests', () => {
   });
 
   it('应该禁用错题闪卡按钮当没有闪卡', () => {
+    // Ensure store is clean
+    useAppStore.setState({ flashcards: [] });
     render(<App />);
 
     const flashcardButton = screen.getByRole('button', { name: /错题闪卡/ });
@@ -248,20 +267,23 @@ describe('App Integration Tests', () => {
   });
 
   it('应该启用错题闪卡按钮当有闪卡', async () => {
-    mockLocalStorage.store['code_doctor_flashcards'] = JSON.stringify([
-      {
-        id: 'card-1',
-        concept: 'Test',
-        frontCode: 'wrong',
-        backCode: 'correct',
-        explanation: 'explanation',
-        stats: {
-          correctStreak: 0,
-          incorrectCount: 0,
-          status: 'new'
+    // Directly set state in store instead of localStorage
+    useAppStore.setState({
+      flashcards: [
+        {
+          id: 'card-1',
+          concept: 'Test',
+          frontCode: 'wrong',
+          backCode: 'correct',
+          explanation: 'explanation',
+          stats: {
+            correctStreak: 0,
+            incorrectCount: 0,
+            status: 'new'
+          }
         }
-      }
-    ]);
+      ]
+    });
 
     render(<App />);
 
