@@ -86,7 +86,8 @@ export const useAppStore = create<AppState>()(
           set({ diagnosisState: { status: 'complete', result, error: null } });
 
           // Recommend Quiz based on error
-          if (result.hasError) {
+          const hasError = result.trace.some(step => step.status === 'error');
+          if (hasError) {
             const quiz = getRecommendedQuiz(result.rawError, code);
             set({ activeQuiz: quiz });
           } else {
@@ -247,6 +248,15 @@ export const useAppStore = create<AppState>()(
     {
       name: 'code-doctor-storage',
       partialize: (state) => ({ flashcards: state.flashcards }), // Only persist flashcards
+      storage: createJSONStorage(() => localStorage, {
+        reviver: (key, value) => {
+          // Recover Date objects for FSRS compatibility
+          if (key === 'due' || key === 'last_review') {
+            return value ? new Date(value as string) : value;
+          }
+          return value;
+        },
+      }),
     }
   )
 );

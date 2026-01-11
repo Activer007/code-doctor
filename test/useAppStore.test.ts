@@ -58,9 +58,8 @@ describe('useAppStore', () => {
     it('should handle diagnosis flow', async () => {
       const mockResult = {
         rawError: 'Error',
-        trace: [],
+        trace: [{ status: 'error', title: 'Error', desc: 'desc', isError: true }],
         generatedFlashcards: [],
-        hasError: true
       };
       
       vi.mocked(analyzeCode).mockResolvedValue(mockResult as any);
