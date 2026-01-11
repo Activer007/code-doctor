@@ -18,6 +18,8 @@ export interface FlashcardData {
   explanation: string; // 解释
 }
 
+import { Card as FSRSCard } from 'ts-fsrs';
+
 export interface Flashcard extends FlashcardData {
   id: string;
   stats: {
@@ -25,6 +27,7 @@ export interface Flashcard extends FlashcardData {
     incorrectCount: number; // 累积错误次数
     status: 'new' | 'learning' | 'critical' | 'mastered';
   };
+  fsrs?: FSRSCard; // FSRS 算法数据
 }
 
 export interface DiagnosisResponse {

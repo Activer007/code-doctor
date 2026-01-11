@@ -1,31 +1,34 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { analyzeCode } from '../services/geminiService';
 import type { DiagnosisResponse } from '../types';
 
-// 创建一个更完整的 mock
-const mockGenerateContent = vi.fn();
-
-class MockGoogleGenAI {
-  constructor(config: any) {
-    // Mock constructor
-  }
-
-  models = {
-    generateContent: mockGenerateContent
-  };
-}
+const { mockGenerateContent } = vi.hoisted(() => {
+  return { mockGenerateContent: vi.fn() };
+});
 
 // Mock GoogleGenAI 模块
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: MockGoogleGenAI as any,
-  Type: {
-    OBJECT: 'object',
-    ARRAY: 'array',
-    STRING: 'string',
-    BOOLEAN: 'boolean',
-    ENUM: 'enum'
+vi.mock('@google/genai', () => {
+  class MockGoogleGenAI {
+    constructor(config: any) {
+      // Mock constructor
+    }
+
+    models = {
+      generateContent: mockGenerateContent
+    };
   }
-}));
+
+  return {
+    GoogleGenAI: MockGoogleGenAI as any,
+    Type: {
+      OBJECT: 'object',
+      ARRAY: 'array',
+      STRING: 'string',
+      BOOLEAN: 'boolean',
+      ENUM: 'enum'
+    }
+  };
+});
 
 describe('geminiService', () => {
   beforeEach(() => {
@@ -33,6 +36,11 @@ describe('geminiService', () => {
     process.env.API_KEY = 'test-api-key';
     vi.clearAllMocks();
     mockGenerateContent.mockReset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('analyzeCode', () => {
@@ -119,7 +127,13 @@ describe('geminiService', () => {
           })
         });
 
-      const result = await analyzeCode('test');
+      const promise = analyzeCode('test');
+      
+      // Fast-forward time for retries
+      await vi.advanceTimersByTimeAsync(1000); // 1st retry
+      await vi.advanceTimersByTimeAsync(2000); // 2nd retry
+
+      const result = await promise;
 
       expect(mockGenerateContent).toHaveBeenCalledTimes(3);
       expect(result).toBeDefined();
@@ -128,7 +142,15 @@ describe('geminiService', () => {
     it('应该在最大重试次数后抛出错误', async () => {
       mockGenerateContent.mockRejectedValue(new Error('Persistent error'));
 
-      await expect(analyzeCode('test')).rejects.toThrow(
+      const promise = analyzeCode('test');
+
+      // Advance through all retries
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+      await vi.advanceTimersByTimeAsync(4000);
+      await vi.advanceTimersByTimeAsync(8000);
+      
+      await expect(promise).rejects.toThrow(
         'Failed to analyze code after multiple attempts'
       );
 
@@ -138,12 +160,28 @@ describe('geminiService', () => {
     it('应该使用指数退避策略', async () => {
       mockGenerateContent.mockRejectedValue(new Error('Error'));
 
-      const startTime = Date.now();
-      await analyzeCode('test').catch(() => {});
-      const endTime = Date.now();
+      const promise = analyzeCode('test').catch(() => {});
 
-      // 应该至少等待: 1000 + 2000 + 4000 + 8000 = 15000ms
-      expect(endTime - startTime).toBeGreaterThan(14000);
+      // Initial call
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+
+      // 1st retry after 1000ms
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+
+      // 2nd retry after 2000ms
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+      
+      // 3rd retry after 4000ms
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(4);
+
+      // 4th retry after 8000ms
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(5);
+      
+      await promise;
     });
 
     it('应该解析空的响应', async () => {
@@ -151,7 +189,9 @@ describe('geminiService', () => {
         text: null
       });
 
-      await expect(analyzeCode('test')).rejects.toThrow();
+      const promise = analyzeCode('test');
+      await vi.advanceTimersByTimeAsync(20000); // Advance enough to cover retries
+      await expect(promise).rejects.toThrow();
     });
 
     it('应该传递正确的参数到 API', async () => {
@@ -177,7 +217,9 @@ describe('geminiService', () => {
         text: 'invalid json{{{'
       });
 
-      await expect(analyzeCode('test')).rejects.toThrow();
+      const promise = analyzeCode('test');
+      await vi.advanceTimersByTimeAsync(20000);
+      await expect(promise).rejects.toThrow();
     });
 
     it('应该包含代码分析提示', async () => {

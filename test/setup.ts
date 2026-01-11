@@ -31,3 +31,17 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Mock Worker
+class WorkerMock {
+  constructor(stringUrl: string | URL, options?: WorkerOptions) {}
+  onmessage: ((this: Worker, ev: MessageEvent) => any) | null = null;
+  postMessage(message: any) {}
+  terminate() {}
+  addEventListener() {}
+  removeEventListener() {}
+  dispatchEvent() { return true; }
+  onerror = null;
+  onmessageerror = null;
+}
+global.Worker = WorkerMock as any;

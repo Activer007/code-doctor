@@ -3,11 +3,46 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
 import { analyzeCode } from '../services/geminiService';
 import { addHistoryRecord } from '../services/historyService';
+import { useAppStore } from '../stores/useAppStore';
 import type { DiagnosisResponse } from '../types';
 
 // Mock services
 vi.mock('../services/geminiService');
-vi.mock('../services/historyService');
+vi.mock('../services/historyService', async () => {
+  const actual = await vi.importActual('../services/historyService');
+  return {
+    ...actual as any,
+    addHistoryRecord: vi.fn(),
+    getHistoryStats: vi.fn().mockReturnValue({ totalRecords: 0, totalFlashcards: 0, topTags: [] }),
+    loadHistory: vi.fn().mockReturnValue([]),
+    // Mock other functions as needed by HistorySidebar
+    groupHistoryByDate: vi.fn().mockReturnValue([]),
+    searchHistory: vi.fn().mockReturnValue([]),
+    filterByTag: vi.fn().mockReturnValue([])
+  };
+});
+
+// Mock Monaco Editor
+vi.mock('@monaco-editor/react', () => {
+  return {
+    default: ({ value, onChange, options }: any) => {
+      return (
+        <textarea
+          data-testid="monaco-editor-mock"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={options?.readOnly}
+        />
+      );
+    },
+    useMonaco: () => ({
+      editor: {
+        defineTheme: vi.fn(),
+        setTheme: vi.fn(),
+      }
+    })
+  };
+});
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -61,6 +96,22 @@ describe('App Integration Tests', () => {
     vi.clearAllMocks();
     mockLocalStorage.clear();
 
+    // Reset Zustand store
+    useAppStore.setState({
+      code: '',
+      diagnosisState: { status: 'idle', result: null, error: null },
+      traceData: [],
+      currentStep: -1,
+      isPlaying: false,
+      flashcards: [],
+      consoleOutput: { stdout: '', stderr: '' },
+      isRunning: false,
+      activeQuiz: null,
+      isReviewMode: false,
+      selectedHistoryRecord: null,
+      isHistoryOpen: false
+    });
+
     // Mock analyzeCode
     vi.mocked(analyzeCode).mockResolvedValue(mockDiagnosisResult);
 
@@ -99,7 +150,7 @@ describe('App Integration Tests', () => {
   it('应该允许用户输入代码', () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: "print('hello')" } });
 
     expect(textarea).toHaveValue("print('hello')");
@@ -108,7 +159,7 @@ describe('App Integration Tests', () => {
   it('应该在点击启动扫描时调用 analyzeCode', async () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: "df['A', 'B']" } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -122,7 +173,7 @@ describe('App Integration Tests', () => {
   it('应该显示诊断结果', async () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -136,7 +187,7 @@ describe('App Integration Tests', () => {
   it('应该显示执行追踪地图', async () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -151,7 +202,7 @@ describe('App Integration Tests', () => {
   it('应该自动保存历史记录', async () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -168,7 +219,7 @@ describe('App Integration Tests', () => {
   it('应该显示生成的闪卡数量', async () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -184,7 +235,7 @@ describe('App Integration Tests', () => {
 
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -202,36 +253,41 @@ describe('App Integration Tests', () => {
     fireEvent.click(historyButton);
 
     await waitFor(() => {
-      expect(screen.getByText('历史记录')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: '历史记录' })).toBeInTheDocument();
     });
   });
 
   it('应该禁用错题闪卡按钮当没有闪卡', () => {
+    // Ensure store is clean
+    useAppStore.setState({ flashcards: [] });
     render(<App />);
 
-    const flashcardButton = screen.getByText('错题闪卡');
+    const flashcardButton = screen.getByRole('button', { name: /错题闪卡/ });
     expect(flashcardButton).toBeDisabled();
   });
 
   it('应该启用错题闪卡按钮当有闪卡', async () => {
-    mockLocalStorage.store['code_doctor_flashcards'] = JSON.stringify([
-      {
-        id: 'card-1',
-        concept: 'Test',
-        frontCode: 'wrong',
-        backCode: 'correct',
-        explanation: 'explanation',
-        stats: {
-          correctStreak: 0,
-          incorrectCount: 0,
-          status: 'new'
+    // Directly set state in store instead of localStorage
+    useAppStore.setState({
+      flashcards: [
+        {
+          id: 'card-1',
+          concept: 'Test',
+          frontCode: 'wrong',
+          backCode: 'correct',
+          explanation: 'explanation',
+          stats: {
+            correctStreak: 0,
+            incorrectCount: 0,
+            status: 'new'
+          }
         }
-      }
-    ]);
+      ]
+    });
 
     render(<App />);
 
-    const flashcardButton = screen.getByText('错题闪卡');
+    const flashcardButton = screen.getByRole('button', { name: /错题闪卡/ });
     expect(flashcardButton).not.toBeDisabled();
   });
 
@@ -250,7 +306,7 @@ describe('App Integration Tests', () => {
   it('应该支持清空代码', () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const clearButton = screen.getByText('清空');
@@ -262,7 +318,7 @@ describe('App Integration Tests', () => {
   it('应该显示分析中状态', () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -275,7 +331,7 @@ describe('App Integration Tests', () => {
   it('应该支持重置视图', async () => {
     render(<App />);
 
-    const textarea = screen.getByPlaceholderText(/在此粘贴 Python 代码/);
+    const textarea = screen.getByTestId('monaco-editor-mock');
     fireEvent.change(textarea, { target: { value: 'test code' } });
 
     const submitButton = screen.getByText('启动扫描');
@@ -289,6 +345,6 @@ describe('App Integration Tests', () => {
     fireEvent.click(resetButton);
 
     // 应该返回初始状态
-    expect(screen.getByPlaceholderText(/在此粘贴 Python 代码/)).toBeInTheDocument();
+    expect(screen.getByTestId('monaco-editor-mock')).toBeInTheDocument();
   });
 });

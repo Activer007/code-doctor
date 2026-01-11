@@ -1,138 +1,70 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Activity, Play, RotateCcw, Cpu, AlertTriangle, CheckCircle, BrainCircuit, Trash2, History } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { TraceMap } from './components/TraceMap';
 import { FlashcardReview } from './components/FlashcardReview';
 import HistorySidebar from './components/HistorySidebar';
 import HistoryDetail from './components/HistoryDetail';
-import { analyzeCode } from './services/geminiService';
-import { addHistoryRecord } from './services/historyService';
-import { DiagnosisState, Flashcard, HistoryRecord } from './types';
+import { useAppStore } from './stores/useAppStore';
+
+import { ConsolePanel } from './components/ConsolePanel';
+import { TracePlayer } from './components/TracePlayer';
+import { QuizCard } from './components/QuizCard';
 
 const App: React.FC = () => {
-  const [code, setCode] = useState<string>('');
-  const [diagnosisState, setDiagnosisState] = useState<DiagnosisState>({
-    status: 'idle',
-    result: null,
-    error: null,
-  });
-  
-  // Flashcard State
-  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
-  const [isReviewMode, setIsReviewMode] = useState(false);
+  // Use Zustand store
+  const {
+    // Editor State
+    code, setCode,
+    
+    // Diagnosis State
+    diagnosisState,
+    diagnoseCode,
+    resetDiagnosis,
+    
+    // Console/Runtime State
+    consoleOutput,
+    isRunning,
+    runCode,
+    
+    // Trace State
+    traceData,
+    currentStep,
+    isPlaying,
+    setCurrentStep,
+    incrementCurrentStep,
+    setIsPlaying,
+    
+    // Quiz State
+    activeQuiz,
+    
+    // Flashcard State
+    flashcards,
+    isReviewMode,
+    setIsReviewMode,
+    updateFlashcard,
+    clearMasteredCards,
+    
+    // History State
+    isHistoryOpen,
+    selectedHistoryRecord,
+    setIsHistoryOpen,
+    setSelectedHistoryRecord,
+    loadHistoryRecord
+  } = useAppStore();
 
-  // History State
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<HistoryRecord | null>(null);
-
-  // Load flashcards from localStorage on mount
+  // Trace Playback Effect
   useEffect(() => {
-    const saved = localStorage.getItem('code_doctor_flashcards');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setFlashcards(parsed);
-        console.log(`[CodeDoctor] Initialized: Loaded ${parsed.length} flashcards.`);
-      } catch (e) {
-        console.error("[CodeDoctor] Error parsing saved flashcards:", e);
-      }
-    } else {
-      console.log("[CodeDoctor] Initialized: No saved flashcards found.");
+    let interval: any;
+    if (isPlaying && traceData.length > 0 && currentStep < traceData.length - 1) {
+      interval = setInterval(() => {
+        incrementCurrentStep();
+      }, 500); // 500ms per step
+    } else if (currentStep >= traceData.length - 1) {
+      setIsPlaying(false);
     }
-  }, []);
-
-  // Save flashcards whenever they change
-  useEffect(() => {
-    console.log(`[CodeDoctor] Syncing ${flashcards.length} flashcards to localStorage.`);
-    localStorage.setItem('code_doctor_flashcards', JSON.stringify(flashcards));
-  }, [flashcards]);
-
-  const handleDiagnose = async () => {
-    if (!code.trim()) {
-      console.warn("[CodeDoctor] Diagnosis blocked: Empty code input.");
-      return;
-    }
-
-    console.log("[CodeDoctor] Diagnosis triggered.");
-    setDiagnosisState({ status: 'analyzing', result: null, error: null });
-
-    try {
-      const result = await analyzeCode(code);
-      console.log("[CodeDoctor] Diagnosis complete:", result);
-      setDiagnosisState({ status: 'complete', result, error: null });
-
-      // 自动保存到历史记录
-      addHistoryRecord(code, result);
-      console.log("[CodeDoctor] Record saved to history.");
-
-      // Process new flashcards from the analysis
-      if (result.generatedFlashcards && result.generatedFlashcards.length > 0) {
-        console.log(`[CodeDoctor] Processing ${result.generatedFlashcards.length} new flashcards.`);
-        const newCards: Flashcard[] = result.generatedFlashcards.map((data, index) => ({
-          ...data,
-          id: `${Date.now()}-${index}`,
-          stats: {
-            correctStreak: 0,
-            incorrectCount: 0,
-            status: 'new'
-          }
-        }));
-
-        setFlashcards(prev => [...prev, ...newCards]);
-      } else {
-        console.log("[CodeDoctor] No new flashcards in response.");
-      }
-
-    } catch (err: any) {
-      console.error("[CodeDoctor] Diagnosis error:", err);
-      setDiagnosisState({
-        status: 'error',
-        result: null,
-        error: err.message || '系统发生未知错误。',
-      });
-    }
-  };
-
-  const reset = () => {
-    console.log("[CodeDoctor] Resetting view.");
-    setDiagnosisState({ status: 'idle', result: null, error: null });
-  };
-
-  const handleUpdateCard = (id: string, isCorrect: boolean) => {
-    console.log(`[CodeDoctor] Updating card ${id} - Correct: ${isCorrect}`);
-    setFlashcards(prev => prev.map(card => {
-      if (card.id !== id) return card;
-
-      let newStats = { ...card.stats };
-
-      if (isCorrect) {
-        newStats.correctStreak += 1;
-        // If 3 consecutive correct answers, mark as mastered
-        if (newStats.correctStreak >= 3) {
-          newStats.status = 'mastered';
-          console.log(`[CodeDoctor] Card ${id} mastered!`);
-        } else {
-          newStats.status = 'learning';
-        }
-      } else {
-        newStats.correctStreak = 0; // Reset streak
-        newStats.incorrectCount += 1;
-        // If 3 total errors, mark as critical
-        if (newStats.incorrectCount >= 3) {
-          newStats.status = 'critical';
-          console.log(`[CodeDoctor] Card ${id} marked critical.`);
-        }
-      }
-
-      return { ...card, stats: newStats };
-    }));
-  };
-  
-  const clearMasteredCards = () => {
-    const countBefore = flashcards.length;
-    setFlashcards(prev => prev.filter(c => c.stats.status !== 'mastered'));
-    console.log(`[CodeDoctor] Cleared mastered cards. Count reduced from ${countBefore} to ${flashcards.length}.`);
-  };
+    return () => clearInterval(interval);
+  }, [isPlaying, traceData, currentStep, incrementCurrentStep, setIsPlaying]);
 
   const activeCardsCount = flashcards.filter(c => c.stats.status !== 'mastered').length;
 
@@ -143,15 +75,7 @@ const App: React.FC = () => {
       <HistorySidebar
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
-        onSelectRecord={(record) => {
-          setSelectedHistoryRecord(record);
-          setCode(record.code);
-          setDiagnosisState({
-            status: 'complete',
-            result: record.result,
-            error: null
-          });
-        }}
+        onSelectRecord={loadHistoryRecord}
       />
 
       {/* 历史记录详情视图（覆盖模式） */}
@@ -171,7 +95,7 @@ const App: React.FC = () => {
             console.log("[CodeDoctor] Closing review mode.");
             setIsReviewMode(false);
           }}
-          onUpdateCard={handleUpdateCard}
+          onUpdateCard={updateFlashcard}
         />
       )}
 
@@ -253,11 +177,30 @@ const App: React.FC = () => {
                 value={code} 
                 onChange={setCode} 
                 isAnalyzing={diagnosisState.status === 'analyzing'}
+                activeLine={traceData[currentStep]?.line}
               />
             </div>
 
+            {traceData.length > 0 && (
+              <TracePlayer 
+                totalSteps={traceData.length}
+                currentStep={currentStep}
+                onStepChange={setCurrentStep}
+                isPlaying={isPlaying}
+                onPlayPause={() => setIsPlaying(!isPlaying)}
+              />
+            )}
+
+            <ConsolePanel 
+              output={consoleOutput.stdout} 
+              error={consoleOutput.stderr}
+              isRunning={isRunning} 
+              onRun={runCode}
+              executionTime={consoleOutput.time}
+            />
+
             <button
-              onClick={handleDiagnose}
+              onClick={diagnoseCode}
               disabled={diagnosisState.status === 'analyzing' || !code.trim()}
               className={`
                 relative w-full py-4 rounded-xl font-bold tracking-widest transition-all duration-300 overflow-hidden group
@@ -289,7 +232,7 @@ const App: React.FC = () => {
                 <Activity size={16} /> 诊断报告 (DIAGNOSTIC REPORT)
               </h2>
               {diagnosisState.status === 'complete' && (
-                 <button onClick={reset} className="text-xs text-slate-500 hover:text-white underline decoration-slate-700 underline-offset-4">
+                 <button onClick={resetDiagnosis} className="text-xs text-slate-500 hover:text-white underline decoration-slate-700 underline-offset-4">
                    重置视图
                  </button>
               )}
@@ -341,7 +284,7 @@ const App: React.FC = () => {
                    </div>
                    <h3 className="text-xl font-bold text-white mb-2">系统故障</h3>
                    <p className="text-rose-300/80 mb-6">{diagnosisState.error}</p>
-                   <button onClick={handleDiagnose} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-mono border border-slate-700 transition-colors">
+                   <button onClick={diagnoseCode} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-mono border border-slate-700 transition-colors">
                      重试连接
                    </button>
                  </div>
@@ -371,6 +314,19 @@ const App: React.FC = () => {
                   <div className="relative">
                     <TraceMap trace={diagnosisState.result.trace} />
                   </div>
+
+                  {/* Quiz Recommendation */}
+                  {activeQuiz && (
+                    <div className="animate-[slideUp_0.6s_ease-out]">
+                      <QuizCard 
+                        quiz={activeQuiz} 
+                        onComplete={(isCorrect) => {
+                          console.log("Quiz completed. Correct:", isCorrect);
+                          // TODO: Add XP or save to stats
+                        }} 
+                      />
+                    </div>
+                  )}
                   
                   {/* Final Status */}
                   <div className="flex items-center justify-center pt-8 border-t border-slate-800">
