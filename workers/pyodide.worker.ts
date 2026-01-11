@@ -68,41 +68,47 @@ async function runPythonCode(code: string, id: string) {
 
   // 设置输出捕获
   pyodide.setStdout({
-    batched: (msg) => stdoutBuffer.push(msg)
+    batched: (msg) => {
+      console.log('Python stdout:', msg);
+      stdoutBuffer.push(msg);
+    }
   });
   pyodide.setStderr({
-    batched: (msg) => stderrBuffer.push(msg)
+    batched: (msg) => {
+      console.error('Python stderr:', msg);
+      stderrBuffer.push(msg);
+    }
   });
 
   try {
     const startTime = performance.now();
     
-    // 使用 Tracer 运行代码
-    // 注意：我们需要转义代码中的引号，或者使用 Pyodide 的 globals 传递变量，这里简单起见使用 globals
-    // 但 runPythonAsync 可以直接访问 JS 作用域，更安全的方式是将代码存入 Python 变量
+    // 将代码存入 Python 全局变量，避免转义问题
+    // @ts-ignore - pyodide globals access
+    pyodide.globals.set("_user_code_to_run", code);
     
-    // 方法：将用户代码赋值给一个 Python 变量，然后传给 tracer
-    // 简单的转义处理
-    const escapedCode = code.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
-    const pythonCmd = `_global_tracer.run("${escapedCode}")`;
-    
-    // 执行
+    // 执行 tracer.run
+    const pythonCmd = `_global_tracer.run(_user_code_to_run)`;
     const traceJson = await pyodide.runPythonAsync(pythonCmd);
+    
     const traceData = JSON.parse(traceJson);
-
     const endTime = performance.now();
+
+    // 检查 traceData 是否包含顶层错误（如语法错误）
+    const hasTopLevelError = Array.isArray(traceData) && traceData.length > 0 && traceData[0].status === 'error' && traceData[0].title === '语法错误';
 
     self.postMessage({
       type: 'RESULT',
       id,
-      success: true,
-      result: 'Execution Complete', // Tracer 模式下主要看 Trace，返回值次要
+      success: !hasTopLevelError,
+      result: 'Execution Complete',
       trace: traceData,
       stdout: stdoutBuffer.join('\n'),
       stderr: stderrBuffer.join('\n'),
       executionTime: endTime - startTime
     });
   } catch (error: any) {
+    console.error('Worker execution error:', error);
     self.postMessage({
       type: 'RESULT',
       id,

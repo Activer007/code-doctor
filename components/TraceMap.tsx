@@ -65,6 +65,27 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
         <h3 className="text-lg font-bold text-slate-100 mb-1">{step.title}</h3>
         <p className="text-slate-400 text-sm leading-relaxed mb-3">{step.desc}</p>
 
+        {/* Variables Snapshot */}
+        {step.variables && Object.keys(step.variables).length > 0 && (
+          <div className="mt-3 mb-4 p-3 bg-slate-950/40 rounded border border-slate-800/50">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-2 flex items-center gap-1">
+              <div className="w-1 h-1 rounded-full bg-neon-blue"></div>
+              变量快照 (Locals)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+              {Object.entries(step.variables).map(([name, value]) => (
+                <div key={name} className="flex items-baseline gap-2 text-xs font-mono">
+                  <span className="text-blue-400">{name}</span>
+                  <span className="text-slate-600">=</span>
+                  <span className="text-amber-200 truncate">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Comparison View for Errors */}
         {step.isError && (step.badCode || step.goodCode) && (
           <div className="mt-4 rounded-lg overflow-hidden border border-slate-700 bg-slate-950/50">

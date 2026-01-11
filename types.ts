@@ -9,6 +9,8 @@ export interface TraceStep {
   goodCode?: string;
   reason?: string;
   tip?: string;
+  line?: number;
+  variables?: Record<string, any>;
 }
 
 export interface FlashcardData {

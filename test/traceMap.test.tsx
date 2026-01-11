@@ -187,6 +187,29 @@ describe('TraceMap Component', () => {
     expect(screen.getByText(/这是提示/)).toBeInTheDocument();
   });
 
+  it('应该渲染变量快照', () => {
+    const stepWithVariables: TraceStep = {
+      status: 'success',
+      title: '变量步骤',
+      desc: '描述',
+      isError: false,
+      variables: {
+        x: 10,
+        y: 'hello',
+        z: [1, 2, 3]
+      }
+    };
+
+    render(<TraceMap trace={[stepWithVariables]} />);
+
+    expect(screen.getByText('变量快照 (Locals)')).toBeInTheDocument();
+    expect(screen.getByText('x')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('y')).toBeInTheDocument();
+    expect(screen.getByText('hello')).toBeInTheDocument();
+    expect(screen.getByText(/\[1,2,3\]/)).toBeInTheDocument();
+  });
+
   it('应该显示步骤的状态标签', () => {
     render(<TraceMap trace={[successStep, warningStep, errorStep]} />);
 
