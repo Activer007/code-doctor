@@ -1,6 +1,7 @@
 import React from 'react';
 import { TraceStep } from '../types';
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, Lightbulb, GitCommit } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Lightbulb, GitCommit } from 'lucide-react';
+import { Virtuoso } from 'react-virtuoso';
 
 interface TraceMapProps {
   trace: TraceStep[];
@@ -38,8 +39,8 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
   const nodeClass = getStatusColor(step.status);
 
   return (
-    <div className="relative pl-8 pb-8 last:pb-0">
-      {/* Connector Line */}
+    <div className="relative pl-8 pb-8 last:pb-4">
+      {/* Connector Line - Moved inside node for virtual list compatibility */}
       {!isLast && (
         <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-slate-800"></div>
       )}
@@ -133,16 +134,41 @@ const TraceNode: React.FC<{ step: TraceStep; isLast: boolean; index: number }> =
 };
 
 export const TraceMap: React.FC<TraceMapProps> = ({ trace }) => {
+  if (!trace || trace.length === 0) {
+    return null;
+  }
+
+  // Use a fixed height for the scroll area if there are many items
+  const useVirtual = trace.length > 5;
+
+  if (!useVirtual) {
+    return (
+      <div className="relative py-2">
+        {trace.map((step, index) => (
+          <TraceNode 
+            key={index} 
+            step={step} 
+            index={index} 
+            isLast={index === trace.length - 1} 
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="relative py-2">
-      {trace.map((step, index) => (
-        <TraceNode 
-          key={index} 
-          step={step} 
-          index={index} 
-          isLast={index === trace.length - 1} 
-        />
-      ))}
+    <div className="relative py-2" style={{ height: '600px' }}>
+      <Virtuoso
+        style={{ height: '100%' }}
+        data={trace}
+        itemContent={(index, step) => (
+          <TraceNode 
+            step={step} 
+            index={index} 
+            isLast={index === trace.length - 1} 
+          />
+        )}
+      />
     </div>
   );
 };

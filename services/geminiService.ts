@@ -143,3 +143,40 @@ export const analyzeCode = async (code: string): Promise<DiagnosisResponse> => {
 
   throw new Error("Unexpected error in retry loop.");
 };
+
+export const chatWithTutor = async (
+  messages: { role: 'user' | 'model'; parts: { text: string }[] }[],
+  context: { code: string; diagnosis?: string }
+): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  
+  const systemInstruction = `
+    你是 'Code Doctor' 的专属编程导师。你擅长使用“苏格拉底式教学法”，通过提问引导学生思考，而不是直接给出答案。
+    
+    ## 当前上下文
+    代码:
+    """
+    ${context.code}
+    """
+    诊断结果: ${context.diagnosis || '尚未进行诊断'}
+    
+    ## 你的规则:
+    1. 保持亲切、鼓励的语气。
+    2. 如果学生问如何修复错误，先解释错误原因，再给出一个小提示，鼓励他们自己尝试。
+    3. 如果代码是正确的，可以提问“如果我把第 X 行改为 Y，会发生什么？”来深化理解。
+    4. 始终使用中文回答。
+  `;
+
+  const model = ai.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    systemInstruction
+  });
+
+  const chat = model.startChat({
+    history: messages.slice(0, -1),
+  });
+
+  const lastMessage = messages[messages.length - 1].parts[0].text;
+  const result = await chat.sendMessage(lastMessage);
+  return result.response.text();
+};

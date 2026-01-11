@@ -3,6 +3,17 @@ import { render, screen } from '@testing-library/react';
 import { TraceMap } from '../components/TraceMap';
 import type { TraceStep } from '../types';
 
+// Mock react-virtuoso
+vi.mock('react-virtuoso', () => ({
+  Virtuoso: ({ data, itemContent }: any) => (
+    <div data-testid="virtuoso-mock">
+      {data.map((item: any, index: number) => (
+        <div key={index}>{itemContent(index, item)}</div>
+      ))}
+    </div>
+  ),
+}));
+
 describe('TraceMap Component', () => {
   const successStep: TraceStep = {
     status: 'success',
@@ -216,5 +227,20 @@ describe('TraceMap Component', () => {
     // 应该显示不同的状态文本
     const statusElements = screen.getAllByText(/步骤 \d+:/);
     expect(statusElements.length).toBe(3);
+  });
+
+  it('应该能处理大量步骤并使用虚拟滚动', () => {
+    const largeTrace: TraceStep[] = Array.from({ length: 100 }, (_, i) => ({
+      status: 'success',
+      title: `步骤 ${i + 1}`,
+      desc: `描述 ${i + 1}`,
+      isError: false
+    }));
+
+    // 这里由于 Virtuoso 在 JSDOM 下的高度计算限制，可能只会渲染部分节点
+    // 我们主要验证组件不崩溃，且能渲染出初始的几个节点
+    render(<TraceMap trace={largeTrace} />);
+    
+    expect(screen.getByText('步骤 1')).toBeInTheDocument();
   });
 });
