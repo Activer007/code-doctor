@@ -15,7 +15,7 @@ vi.mock('../services/pyodideService');
 vi.mock('ts-fsrs', () => {
   return {
     FSRS: class {
-      create_empty_card() { return { due: new Date() }; }
+      createEmptyCard() { return { due: new Date() }; }
       repeat() { 
         return {
           [1]: { card: { due: new Date() } }, // Again

@@ -203,7 +203,7 @@ export const useAppStore = create<AppState>()(
 
           let newStats = { ...card.stats };
           // @ts-ignore - FSRS property might not be in type definition yet
-          let newFsrs = card.fsrs || fsrs.create_empty_card();
+          let newFsrs = card.fsrs || fsrs.createEmptyCard();
 
           // Use provided rating or default based on correctness
           const rating = providedRating !== undefined 
